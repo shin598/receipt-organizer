@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>領収書整理アプリ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, 'Hiragino Sans', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
+
+  header { background: #1d1d1f; color: white; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 20px; font-weight: 600; }
+  header .nav-links a { color: #a1a1a6; text-decoration: none; margin-left: 16px; font-size: 14px; cursor: pointer; }
+  header .nav-links a:hover { color: white; }
+
+  .container { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Status Bar */
+  .status-bar { display: flex; gap: 12px; margin-bottom: 24px; }
+  .status-item { flex: 1; padding: 12px 16px; border-radius: 10px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .status-ok { background: #d1fae5; color: #065f46; }
+  .status-warn { background: #fef3c7; color: #92400e; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-ok .status-dot { background: #10b981; }
+  .status-warn .status-dot { background: #f59e0b; }
+
+  /* Upload Area */
+  .upload-card { background: white; border-radius: 16px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 24px; }
+  .drop-zone { border: 2px dashed #d1d5db; border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: all .2s; position: relative; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background: #eff6ff; }
+  .drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-icon { font-size: 48px; margin-bottom: 12px; }
+  .drop-zone h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .drop-zone p { color: #6b7280; font-size: 14px; }
+  .preview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 16px; }
+  .preview-item { position: relative; aspect-ratio: 3/4; border-radius: 8px; overflow: hidden; background: #f3f4f6; }
+  .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+  .preview-item .remove-btn { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,.6); color: white; border: none; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  .btn-upload { width: 100%; margin-top: 16px; padding: 14px; background: #3b82f6; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background .2s; }
+  .btn-upload:hover { background: #2563eb; }
+  .btn-upload:disabled { background: #93c5fd; cursor: not-allowed; }
+
+  /* Progress */
+  .progress-list { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .progress-item { padding: 12px 16px; border-radius: 10px; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+  .progress-item.processing { background: #eff6ff; color: #1d4ed8; }
+  .progress-item.success { background: #d1fae5; color: #065f46; }
+  .progress-item.error { background: #fee2e2; color: #991b1b; }
+  .spinner { width: 16px; height: 16px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .result-detail { margin-left: auto; font-size: 12px; opacity: .8; }
+
+  /* Result Cards */
+  .result-card { background: white; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-top: 8px; }
+  .result-card .row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+  .result-card .label { color: #6b7280; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-card { background: #dbeafe; color: #1e40af; }
+  .badge-cash { background: #d1fae5; color: #065f46; }
+  .badge-cat { background: #f3f4f6; color: #374151; }
+  .pdf-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; color: #3b82f6; font-size: 13px; text-decoration: none; }
+  .pdf-link:hover { text-decoration: underline; }
+
+  /* History */
+  .history-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .history-header h2 { font-size: 18px; font-weight: 600; }
+  .filter-tabs { display: flex; gap: 8px; }
+  .filter-tab { padding: 6px 14px; border-radius: 20px; border: 1px solid #e5e7eb; background: white; cursor: pointer; font-size: 13px; transition: all .2s; }
+  .filter-tab.active { background: #1d1d1f; color: white; border-color: #1d1d1f; }
+  .history-list { display: flex; flex-direction: column; gap: 8px; }
+  .history-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 8px; border: 1px solid #f3f4f6; font-size: 14px; }
+  .history-item:hover { background: #f9fafb; }
+  .history-item .icon { font-size: 24px; flex-shrink: 0; }
+  .history-item .name { flex: 1; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-item .meta { color: #9ca3af; font-size: 12px; }
+
+  /* Settings Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; padding: 28px; width: 480px; max-width: calc(100vw - 48px); }
+  .modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 6px; }
+  .form-group input { width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none; transition: border-color .2s; }
+  .form-group input:focus { border-color: #3b82f6; }
+  .form-group small { display: block; margin-top: 4px; color: #9ca3af; font-size: 12px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .btn-primary { background: #3b82f6; color: white; }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary { background: #f3f4f6; color: #374151; }
+  .btn-secondary:hover { background: #e5e7eb; }
+
+  .empty-state { text-align: center; padding: 40px; color: #9ca3af; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧾 領収書整理</h1>
+  <div class="nav-links">
+    <a onclick="showSettings()">⚙️ 設定</a>
+    <a onclick="loadHistory(); document.getElementById('history-section').scrollIntoView({behavior:'smooth'})">📂 履歴</a>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-item {% if has_api_key %}status-ok{% else %}status-warn{% endif %}">
+      <span class="status-dot"></span>
+      Claude AI: {% if has_api_key %}接続済み{% else %}APIキー未設定{% endif %}
+    </div>
+    <div class="status-item {% if has_spreadsheet %}status-ok{% else %}status-warn{% endif %}">
+      <span class="status-dot"></span>
+      スプレッドシート: {% if has_spreadsheet %}設定済み{% else %}未設定{% endif %}
+    </div>
+    {% if not google_enabled %}
+    <div class="status-item status-warn">
+      <span class="status-dot"></span>
+      Google API: ライブラリ未接続
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Upload -->
+  <div class="upload-card">
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="drop-icon">📷</div>
+      <h2>領収書の写真をアップロード</h2>
+      <p>クリックまたはドラッグ＆ドロップ<br>JPG / PNG / HEIC 対応 · 複数枚まとめて可能</p>
+    </div>
+    <div class="preview-grid" id="previewGrid"></div>
+    <div class="progress-list" id="progressList"></div>
+    <button class="btn-upload" id="uploadBtn" onclick="startUpload()" style="display:none">
+      アップロードして整理する
+    </button>
+  </div>
+
+  <!-- History -->
+  <div class="history-card" id="history-section">
+    <div class="history-header">
+      <h2>保存済み領収書</h2>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterHistory('all', this)">すべて</button>
+        <button class="filter-tab" onclick="filterHistory('カード', this)">カード</button>
+        <button class="filter-tab" onclick="filterHistory('現金', this)">現金</button>
+      </div>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="empty-state">読み込み中...</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙️ 設定</h2>
+    <div class="form-group">
+      <label>Anthropic APIキー</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+      <small>Claude AIで領収書を解析するために必要です</small>
+    </div>
+    <div class="form-group">
+      <label>Google スプレッドシート ID</label>
+      <input type="text" id="spreadsheetInput" placeholder="URLの /d/ と /edit の間の文字列">
+      <small>例: https://docs.google.com/spreadsheets/d/<strong>ここの部分</strong>/edit</small>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+      <button class="btn btn-secondary" onclick="closeSettings()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedFiles = [];
+let allHistory = [];
+
+// Drag & Drop
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => addFiles(Array.from(fileInput.files)));
+
+function addFiles(files) {
+  files = files.filter(f => f.type.startsWith('image/'));
+  files.forEach(f => { if (!selectedFiles.find(x => x.name === f.name && x.size === f.size)) selectedFiles.push(f); });
+  renderPreviews();
+}
+
+function renderPreviews() {
+  const grid = document.getElementById('previewGrid');
+  grid.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'preview-item';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    const btn = document.createElement('button');
+    btn.className = 'remove-btn';
+    btn.textContent = '×';
+    btn.onclick = () => { selectedFiles.splice(i, 1); renderPreviews(); };
+    div.appendChild(img);
+    div.appendChild(btn);
+    grid.appendChild(div);
+  });
+  document.getElementById('uploadBtn').style.display = selectedFiles.length ? 'block' : 'none';
+  document.getElementById('progressList').innerHTML = '';
+}
+
+async function startUpload() {
+  if (!selectedFiles.length) return;
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  const list = document.getElementById('progressList');
+  list.innerHTML = '';
+
+  for (const file of selectedFiles) {
+    const item = document.createElement('div');
+    item.className = 'progress-item processing';
+    item.innerHTML = `<div class="spinner"></div><span>${file.name} を解析中...</span>`;
+    list.appendChild(item);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/upload', { method: 'POST', body: fd });
+      const json = await res.json();
+
+      if (json.success) {
+        const d = json.data;
+        const payment = d.payment_method === 'カード' ? `<span class="badge badge-card">カード</span>` : `<span class="badge badge-cash">現金</span>`;
+        const cat = d.category ? `<span class="badge badge-cat">${d.category}</span>` : '';
+        const amount = d.amount ? `¥${Number(d.amount).toLocaleString()}` : '不明';
+        item.className = 'progress-item success';
+        item.innerHTML = `
+          <span>✓</span>
+          <div style="flex:1">
+            <div style="font-weight:600;margin-bottom:4px">${d.store_name || file.name} ${payment} ${cat}</div>
+            <div style="font-size:12px;color:#065f46">${d.date || ''} · ${amount} · PDF保存済み ${d.sheets_updated ? '· スプレッドシート更新済み' : ''}</div>
+            <a class="pdf-link" href="/${d.pdf_path}" target="_blank">📄 PDFを開く</a>
+          </div>`;
+      } else {
+        item.className = 'progress-item error';
+        item.innerHTML = `<span>✗</span><span>${file.name}: ${json.error}</span>`;
+      }
+    } catch (e) {
+      item.className = 'progress-item error';
+      item.innerHTML = `<span>✗</span><span>${file.name}: ネットワークエラー</span>`;
+    }
+  }
+
+  selectedFiles = [];
+  renderPreviews();
+  btn.disabled = false;
+  loadHistory();
+}
+
+// History
+async function loadHistory() {
+  const res = await fetch('/history');
+  allHistory = await res.json();
+  renderHistory('all');
+}
+
+function filterHistory(type, btn) {
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory(type);
+}
+
+function renderHistory(filter) {
+  const list = document.getElementById('historyList');
+  const items = filter === 'all' ? allHistory : allHistory.filter(x => x.folder === filter);
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state">領収書がまだありません</div>';
+    return;
+  }
+  list.innerHTML = items.map(item => {
+    const link = item.drive_link || (item.path ? `/${item.path}` : '');
+    return `
+    <div class="history-item">
+      <span class="icon">${item.folder === 'カード' ? '💳' : '💵'}</span>
+      <span class="name">${item.name}</span>
+      <span class="badge ${item.folder === 'カード' ? 'badge-card' : 'badge-cash'}">${item.folder}</span>
+      <span class="meta">${item.modified}</span>
+      ${link ? `<a href="${link}" target="_blank" style="color:#3b82f6;font-size:13px;text-decoration:none">${item.drive_link ? '📁 Drive' : '開く'}</a>` : ''}
+    </div>`;
+  }).join('');
+}
+
+// Settings
+function showSettings() {
+  fetch('/config').then(r => r.json()).then(c => {
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('spreadsheetInput').value = c.spreadsheet_id || '';
+    document.getElementById('settingsModal').classList.add('open');
+  });
+}
+
+function closeSettings() {
+  document.getElementById('settingsModal').classList.remove('open');
+}
+
+async function saveSettings() {
+  const apiKey = document.getElementById('apiKeyInput').value;
+  const sheetId = document.getElementById('spreadsheetInput').value;
+  const body = { spreadsheet_id: sheetId };
+  if (apiKey && apiKey !== '***') body.anthropic_api_key = apiKey;
+
+  await fetch('/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  closeSettings();
+  location.reload();
+}
+
+document.getElementById('settingsModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeSettings();
+});
+
+// Initial load
+loadHistory();
+</script>
+</body>
+</html>

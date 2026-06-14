@@ -1,0 +1,8 @@
+credentials/
+config.json
+receipts/
+uploads/
+__pycache__/
+*.pyc
+*.zip
+ngrok
