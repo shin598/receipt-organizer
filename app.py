@@ -38,25 +38,30 @@ def get_google_creds():
         return None
 
     # 環境変数から取得（Railway用）
-    token_json = os.environ.get("GOOGLE_TOKEN_JSON")
+    token_json = os.environ.get("GOOGLE_TOKEN_JSON", "").strip()
+    creds = None
     if token_json:
-        token_data = json.loads(token_json)
-        creds = Credentials(
-            token=token_data.get("token"),
-            refresh_token=token_data.get("refresh_token"),
-            token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
-            client_id=token_data.get("client_id"),
-            client_secret=token_data.get("client_secret"),
-            scopes=token_data.get("scopes"),
-        )
-    else:
+        try:
+            token_data = json.loads(token_json)
+            creds = Credentials(
+                token=token_data.get("token"),
+                refresh_token=token_data.get("refresh_token"),
+                token_uri=token_data.get("token_uri", "https://oauth2.googleapis.com/token"),
+                client_id=token_data.get("client_id"),
+                client_secret=token_data.get("client_secret"),
+                scopes=token_data.get("scopes"),
+            )
+        except Exception:
+            pass
+
+    if creds is None:
         # ローカルファイルから取得
         token_path = BASE_DIR / "credentials" / "token.json"
         if not token_path.exists():
             return None
         creds = Credentials.from_authorized_user_file(str(token_path))
 
-    if creds.expired and creds.refresh_token:
+    if creds and creds.expired and creds.refresh_token:
         try:
             creds.refresh(google.auth.transport.requests.Request())
         except Exception:
